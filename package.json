@@ -13,6 +13,7 @@
   "dependencies": {
     "@types/node": "^10.12.2",
     "commander": "^2.19.0",
+    "console.table": "^0.10.0",
     "ethr-did": "^1.0.0",
     "faker": "^4.1.0",
     "sqlite3": "^4.0.3",
