@@ -1,6 +1,6 @@
-# Dummy user data generator
+# Sample data generator
 
-This script creates sqlite database with fake signed data.
+This script creates sqlite database with sample signed data.
 
 First it creates specified number of ethr-did identities, and then uses them to sign data (`firstName`, `lastName`, `avatar` and `email`) about each other.
 
