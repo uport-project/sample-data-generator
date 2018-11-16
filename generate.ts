@@ -14,13 +14,14 @@ const dbName = program.db || 'data.sqlite'
 
 declare interface Profile {
   did: any, // EthrDID object
+  name: string,
   firstName: string,
   lastName: string,
   email: string,
-  avatar: string,
+  profileImage: string,
 }
 
-const claimTypes = ['firstName', 'lastName', 'email', 'avatar']
+const claimTypes = ['name', 'firstName', 'lastName', 'email', 'profileImage']
 
 let users: Profile[] = []
 
@@ -31,10 +32,11 @@ for (let x = 0; x < numberOfDids; x++) {
   const did = new EthrDID({...keypair})
   users.push({
     did,
+    name: faker.name.findName(),
     firstName: faker.name.firstName(),
     lastName: faker.name.lastName(),
     email: faker.internet.email(),
-    avatar: faker.image.avatar()
+    profileImage: faker.image.avatar()
   })
 }
 
@@ -82,6 +84,15 @@ Promise.all(promises).then((jwts) => {
     db.run(`CREATE INDEX "profile_data_claim_type" ON "profile_data" ("claim_type");`)
     db.run(`CREATE TRIGGER insert_profile_data AFTER INSERT ON "signed_data" BEGIN INSERT INTO profile_data select new.rowid, a.iss, a.sub, b.key as claim_type, b.value as claim_value from signed_data a, json_tree(json_blob) b where b.path = '$.claim' and a.rowid = new.rowid; END;`)
     db.run(`CREATE TRIGGER delete_profile_data BEFORE DELETE ON "signed_data" BEGIN DELETE FROM profile_data where parent_id = old.rowid; END;`)
+
+    db.run(`create view IF NOT EXISTS  popular_name as select * from (
+      select sub, claim_value as name
+      from "profile_data"
+      where claim_type='name'
+      group by sub, claim_type, claim_value
+      order by count( claim_value) asc
+      ) group by sub;`)
+
     db.run(`create view  popular_first_name as select * from (
       select sub, claim_value as firstName
       from "profile_data" 
@@ -97,20 +108,26 @@ Promise.all(promises).then((jwts) => {
         group by sub, claim_type, claim_value
         order by count( claim_value) asc
       ) group by sub`)
-      db.run(`create view popular_avatar as select * from (
-        select sub, claim_value as avatar
+      db.run(`create view IF NOT EXISTS popular_profile_image as select * from (
+        select sub, claim_value as profileImage
         from "profile_data" 
-        where claim_type='avatar'
+        where claim_type='profileImage'
         group by sub, claim_type, claim_value
         order by count( claim_value) asc
-      ) group by sub`)
+      ) group by sub;`)
       db.run(`create view distinct_dids as select distinct sub from profile_data`)
-      db.run(`create view profiles as select distinct_dids.sub, popular_first_name.firstName, popular_last_name.lastName, popular_avatar.avatar
+      db.run(`create view IF NOT EXISTS profiles as
+      select
+        distinct_dids.sub,
+        popular_name.name,
+        popular_first_name.firstName,
+        popular_last_name.lastName,
+        popular_profile_image.profileImage
       from distinct_dids
-      INNER join 
-        popular_first_name on popular_first_name.sub = distinct_dids.sub,
-        popular_last_name on popular_last_name.sub = distinct_dids.sub,
-        popular_avatar on popular_avatar.sub = distinct_dids.sub`)
+        left outer join popular_name on distinct_dids.sub = popular_name.sub
+        left outer join popular_first_name on distinct_dids.sub = popular_first_name.sub
+        left outer join popular_last_name on popular_last_name.sub = distinct_dids.sub
+        left outer join popular_profile_image on distinct_dids.sub = popular_profile_image.sub;`)
 
     console.log('Done.')
     console.log('Inserting values...')
